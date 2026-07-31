@@ -1,10 +1,26 @@
 // RENDER FRONT DOOR: a tiny health server so the platform can see the worker is alive.
 // The real work is the polling loop below — this door just answers "alive" when knocked.
-require('http').createServer((req, res) => {
+const _door = require('http').createServer((req, res) => {
   res.writeHead(200, { 'Content-Type': 'application/json' });
   res.end(JSON.stringify({ ok: true, service: 'spark-print-worker', started: STARTED }));
-}).listen(process.env.PORT || 10000, () => console.log('[door] health server listening'));
+});
+_door.on('error', (e) => console.error('[door] server error (non-fatal):', e.message));
+_door.listen(process.env.PORT || 10000, () => console.log('[door] health server listening'));
 const STARTED = new Date().toISOString();
+
+// UNSINKABLE ARMOR: nothing may kill the heart. Every escaped error is caught,
+// confessed into sandbox_audit_logs (so Claude can read the true cause from the DB), and survived.
+async function confess(kind, err) {
+  const msg = String((err && (err.stack || err.message)) || err).slice(0, 500);
+  console.error('[armor]', kind, msg);
+  try {
+    await fetch(`${process.env.SUPABASE_URL}/rest/v1/sandbox_audit_logs`, { method: 'POST',
+      headers: { apikey: process.env.SUPABASE_SERVICE_ROLE_KEY, Authorization: 'Bearer ' + process.env.SUPABASE_SERVICE_ROLE_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ actor_id: 'sandbox_worker_1', action: 'WORKER_' + kind, target_table: 'sandbox_pipeline_queue', record_id: null, metadata: { error: msg, at: new Date().toISOString() } }) });
+  } catch (_) { /* even the confession failing must not kill us */ }
+}
+process.on('uncaughtException', (e) => { confess('UNCAUGHT_EXCEPTION', e); });
+process.on('unhandledRejection', (e) => { confess('UNHANDLED_REJECTION', e); });
 
 'use strict';
 // sandbox-worker.js — 6-stage pipeline over sandbox_ tables ONLY. Atomic claim + advance.
