@@ -1,3 +1,11 @@
+// RENDER FRONT DOOR: a tiny health server so the platform can see the worker is alive.
+// The real work is the polling loop below — this door just answers "alive" when knocked.
+require('http').createServer((req, res) => {
+  res.writeHead(200, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify({ ok: true, service: 'spark-print-worker', started: STARTED }));
+}).listen(process.env.PORT || 10000, () => console.log('[door] health server listening'));
+const STARTED = new Date().toISOString();
+
 'use strict';
 // sandbox-worker.js — 6-stage pipeline over sandbox_ tables ONLY. Atomic claim + advance.
 // Isolated: never reads/writes any live table. Reuses the proven compositor.
