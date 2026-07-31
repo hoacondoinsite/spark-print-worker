@@ -1,0 +1,8 @@
+{
+  "name": "spark-sandbox-worker",
+  "version": "1.0.0",
+  "main": "workers/sandbox-worker.js",
+  "scripts": { "start": "node workers/sandbox-worker.js" },
+  "engines": { "node": ">=18" },
+  "dependencies": { "canvas": "^2.11.2" }
+}
