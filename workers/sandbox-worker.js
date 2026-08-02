@@ -81,7 +81,7 @@ async function runStage(job) {
       const brief=p.brief||{};
       const d={ brandName: kit.brand_name||'', eyebrow: brief.eyebrow||'Special', price: brief.price||'', items: brief.details||brief.offer||order.raw_client_prompt, dates: brief.dates||'', tagline:(kit.contact_info&&kit.contact_info.tagline)||brief.tagline||'', palette:[pal.primary,pal.accent,pal.secondary].filter(Boolean) };
       const proofSpec=Object.assign({}, s, { proofW: s.wIn>=s.hIn?2000:Math.round(2000*s.wIn/s.hIn), proofH: s.wIn>=s.hIn?Math.round(2000*s.hIn/s.wIn):2000 });
-      const bg = await generateBackground(d, s);   // textless
+      const bg = await generateBackground(d, s, { industry: kit.industry||'', banned: kit.banned_visual_elements||[] });   // textless + per-brand bans
       let logoBuf=null; const lu=kit.logos&&(kit.logos.primary||kit.logos.vector); if(lu){ try{ logoBuf=Buffer.from(await(await fetch(lu)).arrayBuffer()); }catch(_){} }
       const proof = await composeProof(bg, logoBuf, proofSpec, d);
       const master = await composeMaster(bg, logoBuf, s, d);
@@ -105,13 +105,33 @@ async function runStage(job) {
   }
 }
 
+// Per-industry scene direction. Mirrors sandbox-tick's domainOntology so BOTH engines
+// render the same dignified scenes. Unmapped industries fall through to the generic hero.
+function sceneFor(industry) {
+  const i = String(industry || '').toLowerCase();
+  if (/funeral|mortuary|cremation|memorial|hospice/.test(i))
+    return 'A dignified, serene memorial chapel interior: soft arches, quiet rows of wooden pews, tasteful white and cream floral arrangements, warm daylight through tall windows, deep respectful calm. Absolutely NO casket, coffin, urn, hearse, grave, or human remains of any kind.';
+  if (/butcher|meat|deli/.test(i)) return 'A warm artisan butcher shop interior: subway tile, polished counter, fresh cuts in a lit case, natural daylight.';
+  if (/salon|barber|hair|spa|wellness/.test(i)) return 'A calm upscale salon interior: soft natural light, clean stations, warm neutral tones.';
+  if (/dental|dentist|medical|clinic|health/.test(i)) return 'A bright, immaculate modern clinic interior: clean lines, soft daylight, reassuring calm.';
+  if (/restaurant|cafe|bistro|pizza|coffee|bakery/.test(i)) return 'An inviting restaurant interior: warm ambient light, texture, appetizing calm.';
+  return '';
+}
+
 // textless background (Gemini lead -> OpenAI fallback). Works live with keys in env.
-async function generateBackground(d, spec) {
+async function generateBackground(d, spec, ctx) {
+  ctx = ctx || {};
   const ban='ABSOLUTELY NO text, words, letters, numbers, logos, watermarks, grommets, ropes, walls, rooms or mockups. Pure edge-to-edge background art.';
   const pal=(d.palette||[]).join(', ');
+  // per-brand bans from sandbox_brands.banned_visual_elements (engine-agnostic; same data sandbox-tick reads)
+  let bannedList = ctx.banned;
+  if (typeof bannedList === 'string') { try { bannedList = JSON.parse(bannedList); } catch(_) { bannedList = [bannedList]; } }
+  const brandBan = (Array.isArray(bannedList) && bannedList.length)
+    ? ' NEVER include, under any circumstance: ' + bannedList.join(', ') + '.' : '';
+  const scene = sceneFor(ctx.industry);
   const prompt = spec.layout==='flat'
-    ? `FLAT 2D graphic-design background field, edge-to-edge, tasteful brand-color field or subtle texture, generous negative space. ${pal?'Palette: '+pal+'.':''} ${ban}`
-    : `Photorealistic hero background photo, portrait, cinematic lighting, one focal point upper two-thirds, calm lower third. ${pal?'Palette: '+pal+'.':''} ${ban}`;
+    ? `FLAT 2D graphic-design background field, edge-to-edge, tasteful brand-color field or subtle texture, generous negative space. ${pal?'Palette: '+pal+'.':''} ${ban}${brandBan}`
+    : `${scene ? scene + ' ' : ''}Photorealistic hero background photo, portrait, cinematic lighting, one focal point upper two-thirds, calm lower third. ${pal?'Palette: '+pal+'.':''} ${ban}${brandBan}`;
   const ar=spec.wIn/spec.hIn, aspect=ar<=0.6?'9:16':ar<0.9?'3:4':ar>1.6?'16:9':ar>1.1?'4:3':'1:1', size=Math.max(spec.wIn,spec.hIn)>=24?'4K':'2K';
   const gk=process.env.GEMINI_API_KEY;
   for (const model of gk?['gemini-3-pro-image-preview','gemini-3.1-flash-image','gemini-2.5-flash-image']:[]) {
