@@ -110,7 +110,7 @@ async function runStage(job) {
 function sceneFor(industry) {
   const i = String(industry || '').toLowerCase();
   if (/funeral|mortuary|cremation|memorial|hospice/.test(i))
-    return 'A dignified, serene memorial chapel interior: soft arches, quiet rows of wooden pews, tasteful white and cream floral arrangements, warm daylight through tall windows, deep respectful calm. Absolutely NO casket, coffin, urn, hearse, grave, or human remains of any kind.';
+    return 'A dignified, serene memorial chapel interior: soft arches, quiet rows of wooden pews, tasteful white and cream floral arrangements, warm daylight through tall windows, deep respectful calm.';
   if (/butcher|meat|deli/.test(i)) return 'A warm artisan butcher shop interior: subway tile, polished counter, fresh cuts in a lit case, natural daylight.';
   if (/salon|barber|hair|spa|wellness/.test(i)) return 'A calm upscale salon interior: soft natural light, clean stations, warm neutral tones.';
   if (/dental|dentist|medical|clinic|health/.test(i)) return 'A bright, immaculate modern clinic interior: clean lines, soft daylight, reassuring calm.';
